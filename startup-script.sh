@@ -44,7 +44,7 @@ echo "PARTY $PARTY_ID running on $LOCAL_IP with hosts: $HOSTS"
 
 BATCH=10
 TOTAL_IMAGES=10000
-cd /root/YOUR_REPO
+cd /root/$REPO
 source smpc-venv/bin/activate
 
 # Loop over all protocols
