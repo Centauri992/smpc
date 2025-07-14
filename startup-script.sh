@@ -5,10 +5,12 @@ set -e
 apt-get update
 apt-get install -y python3-pip git python3-venv
 
-# 2. Clone your repo
+# 2. Clone repo
 REPO="smpc"
+
+cd /root
 git clone https://github.com/Centauri992/$REPO.git
-cd $REPO
+cd /root/$REPO
 
 # 3. Set up virtualenv
 python3 -m venv smpc-venv
@@ -48,7 +50,8 @@ echo "PARTY $PARTY_ID running on $LOCAL_IP with party addresses: $PARTY_ADDRS"
 
 BATCH=10
 TOTAL_IMAGES=10000
-cd ~/smpc  # If in root, use /root/smpc; otherwise, use $HOME/smpc
+
+cd /root/$REPO
 
 source smpc-venv/bin/activate
 
