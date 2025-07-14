@@ -5,6 +5,8 @@ set -e
 apt-get update
 apt-get install -y python3-pip git python3-venv
 
+cd /root/
+
 # Clone your repo
 REPO="smpc"
 git clone https://github.com/Centauri992/$REPO.git
