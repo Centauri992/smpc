@@ -6,9 +6,9 @@ apt-get update
 apt-get install -y python3-pip git python3-venv
 
 # Clone your repo
-cd /root
-git clone https://github.com/Centauri992/smpc.git
-cd YOUR_REPO
+REPO="smpc"
+git clone https://github.com/Centauri992/$REPO.git
+cd /root/$REPO
 
 # Set up virtualenv
 python3 -m venv smpc-venv
