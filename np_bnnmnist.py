@@ -14,6 +14,8 @@ SEED = 42
 random.seed(SEED)
 np.random.seed(SEED)
 
+param_dir = 'binarized_params_fashionmnist'
+
 def load_pytorch_mnist(batch_size=1, offset=0):
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -33,8 +35,8 @@ def load_pytorch_mnist(batch_size=1, offset=0):
 secint = None
 
 def load_W_b(name):
-    """Load signed binary weights W and signed integer bias values b for fully connected layer 'name' from binarized_params directory."""
-    param_dir = 'binarized_params'
+    """Load signed binary weights W and signed integer bias values b for fully connected layer 'name' from binarized_params_fashionmnist directory."""
+    
     W = np.load(os.path.join(param_dir, f'W_{name}.npy'))
     b = np.load(os.path.join(param_dir, f'b_{name}.npy')).astype(object)
     
