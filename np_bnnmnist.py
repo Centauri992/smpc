@@ -1,3 +1,5 @@
+""" this is a slight modification of https://github.com/lschoe/mpyc/blob/master/demos/np_bnnmnist.py to load fashionMNIST dataset using pytorch """"
+
 import os
 import logging
 import random
