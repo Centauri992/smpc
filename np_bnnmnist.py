@@ -1,5 +1,3 @@
-""" this is a slight modification of https://github.com/lschoe/mpyc/blob/master/demos/np_bnnmnist.py to load fashionMNIST dataset using pytorch """"
-
 import os
 import logging
 import random
@@ -9,12 +7,9 @@ import time
 from mpyc.runtime import mpc
 import mpyc.gmpy as gmpy2
 
-# ---- Torchvision MNIST loader ----
 from torchvision import datasets, transforms
 
-SEED = 42
-random.seed(SEED)
-np.random.seed(SEED)
+
 
 param_dir = 'binarized_params_fashionmnist'
 
@@ -34,16 +29,22 @@ def load_pytorch_mnist(batch_size=1, offset=0):
     print(f"load_pytorch_mnist: arr.shape={arr.shape}, dtype={arr.dtype}")
     print(f"First image min/max: {arr[0].min()} / {arr[0].max()}")
     return arr, labels
+
 secint = None
 
+
 def load_W_b(name):
-    """Load signed binary weights W and signed integer bias values b for fully connected layer 'name' from binarized_params_fashionmnist directory."""
+    """Load signed binary weights W and signed integer bias values b for fully connected layer 'name' from binarized_params directory."""
+    
     
     W = np.load(os.path.join(param_dir, f'W_{name}.npy'))
     b = np.load(os.path.join(param_dir, f'b_{name}.npy')).astype(object)
-    
-    W = np.unpackbits(W, axis=0).astype(np.int8)  
-    W = W*2 - 1  # map 0->-1, 1->1
+
+    W = np.unpackbits(W, axis=0,bitorder="big")
+    print("W.shape", W.shape)
+    W = W.astype(np.int8)
+    W = W * 2 - 1
+
     return secint.array(W), secint.array(b)
 
 # ---- (Legendre-based sign functions unchanged) ----
@@ -184,13 +185,12 @@ async def main():
     L, labels = load_pytorch_mnist(batch_size, offset)
     print('Labels:', labels)
     
+    L = np.round(L).astype(np.ubyte)
+    
     if batch_size == 1:
         print("MPyC INPUT min/max:", L[0].min(), L[0].max())
         print("MPyC INPUT first 10:", L[0][:10])
 
-    L = np.round(L).astype(np.uint8)
-    if batch_size == 1:
-        print("MPyC INPUT (rounded, uint8) first 10:", L[0][:10])
 
     L = secint.array(L)
 
@@ -201,27 +201,41 @@ async def main():
     logging.info('--------------- LAYER 1 -------------')
     W, b = load_W_b('fc1')
     logging.info('- - - - - - - - fc  784 x 4096  - - -')
+
     L = L @ W + b
+
+   
     if batch_size == 1:
         fc1_bn1_out = await mpc.output(L[0][:10])
         print("MPyC after FC1+BN1 (first 10):", fc1_bn1_out)
+
+
     logging.info('- - - - - - - - bsgn    - - - - - - -')
+
     L = (L >= 0)*2 - 1
+
     if batch_size == 1:
         fc1_bin_out = await mpc.output(L[0][:10])
         print("MPyC after FC1+BN1+binarize (first 10):", fc1_bin_out)
     await mpc.barrier('after-layer-1')
 
     logging.info('--------------- LAYER 2 -------------')
+
     W, b = load_W_b('fc2')
+
     logging.info('- - - - - - - - fc 4096 x 4096  - - -')
 
     layer2_start = time.time()
+
     L = L @ W + b
+
     if batch_size == 1:
         fc2_bn2_out = await mpc.output(L[0][:10])
         print("MPyC after FC2+BN2 (first 10):", fc2_bn2_out)
+
+    
     logging.info('- - - - - - - - bsgn    - - - - - - -')
+
     if args.no_legendre:
         secint.bit_length = 10
         L = (L >= 0)*2 - 1
@@ -234,11 +248,16 @@ async def main():
     layer2_end = time.time()
 
     logging.info('--------------- LAYER 3 -------------')
+
     W, b = load_W_b('fc3')
+
     logging.info('- - - - - - - - fc 4096 x 4096  - - -')
 
     layer3_start = time.time()
+
     L = L @ W + b
+
+
     if batch_size == 1:
         fc3_bn3_out = await mpc.output(L[0][:10])
         print("MPyC after FC3+BN3 (first 10):", fc3_bn3_out)
@@ -256,7 +275,9 @@ async def main():
 
     logging.info('--------------- LAYER 4 -------------')
     W, b = load_W_b('fc4')
+    
     logging.info('- - - - - - - - fc 4096 x 10  - - - -')
+    
     L = L @ W + b
 
     logging.info('--------------- OUTPUT  -------------')
@@ -279,7 +300,7 @@ async def main():
     total_end = time.time()
     print(f"\nTotal images: {batch_size}")
     print(f"Misclassifications: {n_errors}")
-    print(f"Misclassification rate: {100.0 * n_errors / batch_size:.2f}%")
+    print(f"Misclassification rate: {n_errors / batch_size:.2f}")
     print(f"Layer 2 time: {layer2_end - layer2_start:.2f} seconds")
     print(f"Layer 3 time: {layer3_end - layer3_start:.2f} seconds")
     print(f"Output processing time: {out_end - out_start:.2f} seconds")
