@@ -6,7 +6,7 @@ apt-get update
 apt-get install -y python3-pip git python3-venv
 
 # 2. Clone repo
-REPO="smpc-mnist"
+REPO="smpc"
 
 cd /root
 git clone https://github.com/Centauri992/$REPO.git
