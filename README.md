@@ -1,1 +1,1 @@
-Secure Multi-Party Computation Project
+Secure Multi-Party Computation Project using FashionMNIST dataset
