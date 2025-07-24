@@ -1,3 +1,4 @@
+
 import os
 import logging
 import random
@@ -7,27 +8,32 @@ import time
 from mpyc.runtime import mpc
 import mpyc.gmpy as gmpy2
 
+import torch
+
 from torchvision import datasets, transforms
 
-
+# For reproducibility
+SEED = 1234
+random.seed(SEED)
+np.random.seed(SEED)
+torch.manual_seed(SEED)
 
 param_dir = 'binarized_params_fashionmnist'
 
-def load_pytorch_mnist(batch_size=1, offset=0):
+def load_pytorch_fashionmnist(batch_size=1, offset=0):
     transform = transforms.Compose([
         transforms.ToTensor(),
-        transforms.Lambda(lambda x: x * 255)
+        transforms.Lambda(lambda x: x * 255),
+        transforms.Lambda(lambda x: x.to(torch.uint8)),
+        transforms.Lambda(lambda x: x.view(-1)),
     ])
     mnist = datasets.FashionMNIST(root="./data", train=False, download=True, transform=transform)
     images, labels = [], []
     for idx in range(offset, offset + batch_size):
         img, label = mnist[idx]
-        img = img.view(-1)  # Flatten to (784,)
-        images.append(img.numpy())  # already shape (784,)
+        images.append(img.numpy())
         labels.append(int(label))
-    arr = np.stack(images)  # (batch_size, 784)
-    print(f"load_pytorch_mnist: arr.shape={arr.shape}, dtype={arr.dtype}")
-    print(f"First image min/max: {arr[0].min()} / {arr[0].max()}")
+    arr = np.stack(images).astype(np.uint8)
     return arr, labels
 
 secint = None
@@ -43,7 +49,7 @@ def load_W_b(name):
     W = np.unpackbits(W, axis=0,bitorder="big")
     print("W.shape", W.shape)
     W = W.astype(np.int8)
-    W = W * 2 - 1
+    W = W * 2 - 1           # map bit values 0 and 1 to signed binary values -1 and 1, resp.
 
     return secint.array(W), secint.array(b)
 
@@ -181,16 +187,18 @@ async def main():
     logging.info('--------------- INPUT   -------------')
     print(f'Type = {secint.__name__}, range = ({offset}, {offset + batch_size})')
 
-    # ---- Load images/labels from torchvision fashionMNIST ----
-    L, labels = load_pytorch_mnist(batch_size, offset)
+    # ---- Load images/labels from torchvision MNIST ----
+    L, labels = load_pytorch_fashionmnist(batch_size, offset)
     print('Labels:', labels)
     
-    L = np.round(L).astype(np.ubyte)
+    #L = np.round(L).astype(np.ubyte)
     
     if batch_size == 1:
         print("MPyC INPUT min/max:", L[0].min(), L[0].max())
         print("MPyC INPUT first 10:", L[0][:10])
 
+    print(L.dtype, L.shape)
+    print("Unique values before secint:", np.unique(L))
 
     L = secint.array(L)
 
@@ -199,7 +207,9 @@ async def main():
     total_start = time.time()
 
     logging.info('--------------- LAYER 1 -------------')
+
     W, b = load_W_b('fc1')
+
     logging.info('- - - - - - - - fc  784 x 4096  - - -')
 
     L = L @ W + b
@@ -211,12 +221,15 @@ async def main():
 
 
     logging.info('- - - - - - - - bsgn    - - - - - - -')
-
+    print("Type before binarization:", type(L))
+    print("Sample before binarization:", await mpc.output(L[0][:10]))
+    
     L = (L >= 0)*2 - 1
 
     if batch_size == 1:
         fc1_bin_out = await mpc.output(L[0][:10])
         print("MPyC after FC1+BN1+binarize (first 10):", fc1_bin_out)
+
     await mpc.barrier('after-layer-1')
 
     logging.info('--------------- LAYER 2 -------------')
@@ -230,6 +243,7 @@ async def main():
     L = L @ W + b
 
     if batch_size == 1:
+        
         fc2_bn2_out = await mpc.output(L[0][:10])
         print("MPyC after FC2+BN2 (first 10):", fc2_bn2_out)
 
