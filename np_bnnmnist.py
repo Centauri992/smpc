@@ -1,42 +1,39 @@
-
 import os
 import logging
 import random
 import argparse
 import numpy as np
+import torch
+
 import time
 from mpyc.runtime import mpc
 import mpyc.gmpy as gmpy2
 
-import torch
-
 from torchvision import datasets, transforms
 
-# For reproducibility
-SEED = 1234
-random.seed(SEED)
-np.random.seed(SEED)
-torch.manual_seed(SEED)
+
 
 param_dir = 'binarized_params_fashionmnist'
 
-def load_pytorch_fashionmnist(batch_size=1, offset=0):
-    transform = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Lambda(lambda x: x * 255),
-        transforms.Lambda(lambda x: x.to(torch.uint8)),
-        transforms.Lambda(lambda x: x.view(-1)),
-    ])
-    mnist = datasets.FashionMNIST(root="./data", train=False, download=True, transform=transform)
-    images, labels = [], []
-    for idx in range(offset, offset + batch_size):
-        img, label = mnist[idx]
-        images.append(img.numpy())
-        labels.append(int(label))
-    arr = np.stack(images).astype(np.uint8)
-    return arr, labels
 
-secint = None
+
+def load_pytorch_fashionmnist(batch_size=1, offset=0):
+    ds = datasets.FashionMNIST(
+        root="./data", train=False, download=True,
+        transform=transforms.Compose([
+            transforms.ToTensor(),              # → [0,1]
+            transforms.Lambda(lambda x: x*2.0 - 1.0),
+            transforms.Lambda(torch.sign),      # → exactly -1 or +1
+            transforms.Lambda(lambda x: x.to(torch.int8)),
+            transforms.Lambda(lambda x: x.view(-1)),
+        ])
+    )
+    images, labels = [], []
+    for i in range(offset, offset + batch_size):
+        img, lab = ds[i]
+        images.append(img.numpy())     # dtype=int8, values in {-1,+1}
+        labels.append(int(lab))
+    return np.stack(images), labels
 
 
 def load_W_b(name):
@@ -188,19 +185,16 @@ async def main():
     print(f'Type = {secint.__name__}, range = ({offset}, {offset + batch_size})')
 
     # ---- Load images/labels from torchvision MNIST ----
-    
     L, labels = load_pytorch_fashionmnist(batch_size, offset)
-    
+   
     print('Labels:', labels)
     
-    #L = np.round(L).astype(np.ubyte)
+
     
     if batch_size == 1:
         print("MPyC INPUT min/max:", L[0].min(), L[0].max())
         print("MPyC INPUT first 10:", L[0][:10])
 
-
-    
 
     L = secint.array(L)
 
@@ -225,7 +219,7 @@ async def main():
     logging.info('- - - - - - - - bsgn    - - - - - - -')
     print("Type before binarization:", type(L))
     print("Sample before binarization:", await mpc.output(L[0][:10]))
-    
+
     L = (L >= 0)*2 - 1
 
     if batch_size == 1:
