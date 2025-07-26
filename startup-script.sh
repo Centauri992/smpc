@@ -48,8 +48,8 @@ done
 
 echo "PARTY $PARTY_ID running on $LOCAL_IP with party addresses: $PARTY_ADDRS"
 
-BATCH=10
-TOTAL_IMAGES=10000
+BATCH=100
+TOTAL_IMAGES=5000
 
 cd /root/$REPO
 
