@@ -188,7 +188,9 @@ async def main():
     print(f'Type = {secint.__name__}, range = ({offset}, {offset + batch_size})')
 
     # ---- Load images/labels from torchvision MNIST ----
+    
     L, labels = load_pytorch_fashionmnist(batch_size, offset)
+    
     print('Labels:', labels)
     
     #L = np.round(L).astype(np.ubyte)
@@ -197,8 +199,8 @@ async def main():
         print("MPyC INPUT min/max:", L[0].min(), L[0].max())
         print("MPyC INPUT first 10:", L[0][:10])
 
-    print(L.dtype, L.shape)
-    print("Unique values before secint:", np.unique(L))
+
+    
 
     L = secint.array(L)
 
