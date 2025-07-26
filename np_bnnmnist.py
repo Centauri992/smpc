@@ -18,22 +18,25 @@ param_dir = 'binarized_params_fashionmnist'
 
 
 def load_pytorch_fashionmnist(batch_size=1, offset=0):
+    from torchvision import datasets, transforms
+    import torch, numpy as np
+
+    
     ds = datasets.FashionMNIST(
         root="./data", train=False, download=True,
-        transform=transforms.Compose([
-            transforms.ToTensor(),              # → [0,1]
-            transforms.Lambda(lambda x: x*2.0 - 1.0),
-            transforms.Lambda(torch.sign),      # → exactly -1 or +1
-            transforms.Lambda(lambda x: x.to(torch.int8)),
-            transforms.Lambda(lambda x: x.view(-1)),
-        ])
+        transform=transforms.ToTensor()           # floats in [0,1]
     )
     images, labels = [], []
-    for i in range(offset, offset + batch_size):
-        img, lab = ds[i]
-        images.append(img.numpy())     # dtype=int8, values in {-1,+1}
-        labels.append(int(lab))
-    return np.stack(images), labels
+    for idx in range(offset, offset + batch_size):
+        img, lbl = ds[idx]                       # img: FloatTensor [1×28×28]
+        # 2) Scale to bytes, round & clamp, convert to uint8, flatten:
+        #arr = (img * 255.0).round().clamp(0, 255).to(torch.uint8).view(-1).numpy()  # shape (784,), dtype=uint8
+        arr = (img*255.0).view(-1).numpy()        # dtype=float32, exactly the same as training
+        arr = arr.astype(np.int64)
+        images.append(arr)
+        labels.append(int(lbl))
+    
+    return images, labels
 
 
 def load_W_b(name):
@@ -184,9 +187,10 @@ async def main():
     logging.info('--------------- INPUT   -------------')
     print(f'Type = {secint.__name__}, range = ({offset}, {offset + batch_size})')
 
-    # ---- Load images/labels from torchvision MNIST ----
-    L, labels = load_pytorch_fashionmnist(batch_size, offset)
-   
+    # ---- Load images/labels from torchvision Fashion MNIST ----
+    images, labels = load_pytorch_fashionmnist(batch_size, offset)
+    
+    L = np.stack(images).astype(np.int64)
     print('Labels:', labels)
     
 
